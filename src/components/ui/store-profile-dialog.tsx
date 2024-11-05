@@ -21,12 +21,12 @@ import { updateProfile } from "@/api/update-profile";
 import { toast } from "sonner";
 import { DialogClose } from "@radix-ui/react-dialog";
 
-const storeProfileSchema = z.object({
+const StoreProfileSchema = z.object({
   name: z.string(),
-  description: z.string(),
+  description: z.string().nullable(),
 });
 
-type storeProfileSchema = z.infer<typeof storeProfileSchema>;
+type StoreProfileSchema = z.infer<typeof StoreProfileSchema>;
 
 export function StoreProfileDialog() {
   const queryClient = useQueryClient();
@@ -41,35 +41,51 @@ export function StoreProfileDialog() {
     register,
     handleSubmit,
     formState: { isSubmitting },
-  } = useForm<storeProfileSchema>({
-    resolver: zodResolver(storeProfileSchema),
+  } = useForm<StoreProfileSchema>({
+    resolver: zodResolver(StoreProfileSchema),
     values: {
       name: managedRestaurant?.name ?? "",
       description: managedRestaurant?.description ?? "",
     },
   });
 
+  function updateManagedRestaurantCache({
+    name,
+    description,
+  }: StoreProfileSchema) {
+    const cached = queryClient.getQueryData<GetManagedRestaurantResponse>([
+      "managed-restaurant",
+    ]);
+
+    if (cached) {
+      queryClient.setQueryData<GetManagedRestaurantResponse>(
+        ["managed-restaurant"],
+        {
+          ...cached,
+          name,
+          description,
+        },
+      );
+    }
+
+    return { cached };
+  }
+
   const { mutateAsync: updateProfileFn } = useMutation({
     mutationFn: updateProfile,
-    onSuccess(_, { name, description }) {
-      const cached = queryClient.getQueryData<GetManagedRestaurantResponse>([
-        "managed-restaurant",
-      ]);
+    onMutate({ name, description }) {
+      const { cached } = updateManagedRestaurantCache({ name, description });
 
-      if (cached) {
-        queryClient.setQueryData<GetManagedRestaurantResponse>(
-          ["managed-restaurant"],
-          {
-            ...cached,
-            name,
-            description,
-          },
-        );
+      return { previousProfile: cached };
+    },
+    onError(_, __, context) {
+      if (context?.previousProfile) {
+        updateManagedRestaurantCache(context.previousProfile);
       }
     },
   });
 
-  async function handleUpdateProfile(data: storeProfileSchema) {
+  async function handleUpdateProfile(data: StoreProfileSchema) {
     try {
       await updateProfileFn({
         name: data.name,
