@@ -22,7 +22,7 @@ export interface GetOrdersResponse {
 export async function getOrders({ pageIndex }: GetOrdersQuery) {
   const response = await api.get<GetOrdersResponse>("/orders", {
     params: {
-      pageIndex,
+      pageIndex: typeof pageIndex === "number" && pageIndex < 0 ? 0 : pageIndex,
     },
   });
 
